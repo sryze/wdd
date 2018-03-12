@@ -23,22 +23,22 @@
 #include <windows.h>
 
 typedef struct {
-    const char *in_filename;
-    const char *out_filename;
+    const char *filename_in;
+    const char *filename_out;
     size_t block_size;
     size_t count;
     const char *status;
-} WDDOptions;
+} ProgramOptions;
 
-static HANDLE in_file;
-static HANDLE out_file;
+static HANDLE file_in;
+static HANDLE file_out;
 static size_t buffer_size;
 static char *buffer;
 static BOOL started_copying = FALSE;
 static ULONGLONG start_time;
 static size_t num_bytes_in = 0;
 static size_t num_bytes_out = 0;
-static size_t num_records_copied = 0;
+static size_t num_blocks_copied = 0;
 
 static void PrintUsageAndExit() {
     fprintf(stderr, "Usage: wdd if=<in_file> of=<out_file> "
@@ -106,10 +106,10 @@ static char *GetErrorMessage(DWORD error) {
     return buffer;
 }
 
-static void Cleanup() {
+static void CleanUpOnExit() {
     LocalFree(buffer);
-    CloseHandle(in_file);
-    CloseHandle(out_file);
+    CloseHandle(file_in);
+    CloseHandle(file_out);
 }
 
 static void ExitWithError(int error_code, char *format, ...) {
@@ -129,7 +129,7 @@ static void ExitWithError(int error_code, char *format, ...) {
         PrintStatus();
     }
 
-    Cleanup();
+    CleanUpOnExit();
     exit(EXIT_FAILURE);
 }
 
@@ -160,7 +160,12 @@ static BOOL IsEmptyStringOrNull(const char *s) {
     return s == NULL || *s == '\0';
 }
 
-static BOOL ParseOptions(int argc, char **argv, WDDOptions *options) {
+static BOOL CheckOptions(ProgramOptions *options) {
+    return !IsEmptyStringOrNull(options->filename_in)
+        && !IsEmptyStringOrNull(options->filename_out);
+}
+
+static void ParseOptions(int argc, char **argv, ProgramOptions *options) {
     int i;
 
     for (i = 1; i < argc; i++) {
@@ -168,9 +173,9 @@ static BOOL ParseOptions(int argc, char **argv, WDDOptions *options) {
         char *name = strtok_s(argv[i], "=", &value);
 
         if (strcmp(name, "if") == 0) {
-            options->in_filename = _strdup(value);
+            options->filename_in = _strdup(value);
         } else if (strcmp(name, "of") == 0) {
-            options->out_filename = _strdup(value);
+            options->filename_out = _strdup(value);
         } else if (strcmp(name, "bs") == 0) {
             options->block_size = ParseSize(value);
         } else if (strcmp(name, "count") == 0) {
@@ -179,57 +184,50 @@ static BOOL ParseOptions(int argc, char **argv, WDDOptions *options) {
             options->status = _strdup(value);
         }
     }
-
-    return !IsEmptyStringOrNull(options->in_filename)
-        && !IsEmptyStringOrNull(options->out_filename);
 }
 
 int main(int argc, char **argv) {
-    WDDOptions options = {
-        /* in_filename */  NULL,
-        /* out_filename */ NULL,
-        /* block_size */   0,
-        /* count */        -1
-    };
+    ProgramOptions options = {NULL, NULL, 0, -1};
     BOOL show_progress = FALSE;
     DISK_GEOMETRY_EX disk_geometry;
 
-    if (!ParseOptions(argc, argv, &options)) {
+    ParseOptions(argc, argv, &options);
+    if (!CheckOptions(&options)) {
         PrintUsageAndExit();
     }
 
     start_time = GetSystemTimeMicroseconds();
 
-    in_file = CreateFileA(
-        options.in_filename,
+    file_in = CreateFileA(
+        options.filename_in,
         GENERIC_READ,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
         NULL,
         OPEN_EXISTING,
         FILE_ATTRIBUTE_NORMAL,
         NULL);
-    if (in_file == INVALID_HANDLE_VALUE) {
+    if (file_in == INVALID_HANDLE_VALUE) {
         ExitWithError(
             GetLastError(),
             "Could not open input file or device %s for reading",
-            options.in_filename);
+            options.filename_in);
     }
 
     /* First try to open as an existing file, thne as a new file. We can't
      * use OPEN_ALWAYS because it fails when out_file is a physical drive
      * (no idea why).
      */
-    out_file = CreateFileA(
-        options.out_filename,
+    file_out = CreateFileA(
+        options.filename_out,
         GENERIC_WRITE,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
         NULL,
         OPEN_EXISTING,
         FILE_ATTRIBUTE_NORMAL,
         NULL);
-    if (out_file == INVALID_HANDLE_VALUE) {
-        out_file = CreateFileA(
-            options.out_filename,
+    if (file_out == INVALID_HANDLE_VALUE) {
+        file_out = CreateFileA(
+            options.filename_out,
             GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             NULL,
@@ -237,17 +235,16 @@ int main(int argc, char **argv) {
             FILE_ATTRIBUTE_NORMAL,
             NULL);
     }
-    if (out_file == INVALID_HANDLE_VALUE) {
-        CloseHandle(in_file);
+    if (file_out == INVALID_HANDLE_VALUE) {
         ExitWithError(
             GetLastError(),
             "Could not open output file or device %s for writing",
-            options.out_filename);
+            options.filename_out);
     }
 
-    if (strstr(options.out_filename, "\\\\") == options.out_filename) {
+    if (strstr(options.filename_out, "\\\\") == options.filename_out) {
         if (!DeviceIoControl(
-                out_file,
+                file_out,
                 IOCTL_DISK_GET_DRIVE_GEOMETRY,
                 NULL,
                 0,
@@ -282,12 +279,12 @@ int main(int argc, char **argv) {
         size_t num_block_bytes_out;
         BOOL result;
 
-        if (options.count >= 0 && num_records_copied >= options.count) {
+        if (options.count >= 0 && num_blocks_copied >= options.count) {
             break;
         }
 
         result = ReadFile(
-            in_file,
+            file_in,
             buffer,
             buffer_size,
             &num_block_bytes_in,
@@ -302,7 +299,7 @@ int main(int argc, char **argv) {
         }
 
         result = WriteFile(
-            out_file,
+            file_out,
             buffer,
             num_block_bytes_in,
             &num_block_bytes_out,
@@ -312,10 +309,10 @@ int main(int argc, char **argv) {
         }
         num_bytes_out += num_block_bytes_out;
 
-        num_records_copied++;
+        num_blocks_copied++;
     }
 
-    Cleanup();
+    CleanUpOnExit();
     PrintStatus();
 
     return 0;
