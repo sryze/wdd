@@ -22,7 +22,8 @@
 #include <stdio.h>
 #include <windows.h>
 
-#define DEFAULT_INITIAL_BUFFER_SIZE 4096
+#define BUFFER_SIZE 4096
+#define UPDATE_INTERVAL 1000000
 
 struct program_options {
     const char *filename_in;
@@ -45,12 +46,12 @@ struct program_state {
     size_t num_blocks_copied;
 };
 
-static void print_usage() {
+static void print_usage(void) {
     fprintf(stderr, "Usage: wdd if=<in_file> of=<out_file> [bs=N] [count=N] "
                                "[status=progress]\n");
 }
 
-static ULONGLONG get_time_usec() {
+static ULONGLONG get_time_usec(void) {
     FILETIME filetime;
     ULARGE_INTEGER time;
 
@@ -84,27 +85,58 @@ static void format_speed(char *buffer, size_t buffer_size, double speed) {
     }
 }
 
-static void print_status(const struct program_state *s) {
+static void print_progress(size_t num_bytes_copied,
+                           size_t last_bytes_copied,
+                           ULONGLONG start_time,
+                           ULONGLONG last_time) {
+    ULONGLONG current_time;
     ULONGLONG elapsed_time;
     double speed;
     char bytes_str[16];
     char speed_str[16];
 
-    elapsed_time = get_time_usec() - s->start_time;
+    current_time = get_time_usec();
+    elapsed_time = current_time - start_time;
     if (elapsed_time >= 1000000) {
-        speed = s->num_bytes_out / ((double)elapsed_time / 1000000);
+        speed = last_bytes_copied
+            / ((double)(current_time - last_time) / 1000000);
     } else {
-        speed = (double)s->num_bytes_out;
+        speed = (double)last_bytes_copied;
     }
 
-    format_size(bytes_str, sizeof(bytes_str), s->num_bytes_in);
+    format_size(bytes_str, sizeof(bytes_str), num_bytes_copied);
     format_speed(speed_str, sizeof(speed_str), speed);
 
     printf("%zu bytes (%s) copied, %0.1f s, %s\n",
-        s->num_bytes_out,
+        num_bytes_copied,
         bytes_str,
         (double)elapsed_time / 1000000.0,
         speed_str);
+}
+
+static void print_status(size_t num_bytes_copied, ULONGLONG start_time) {
+    print_progress(
+        num_bytes_copied,
+        num_bytes_copied,
+        start_time,
+        start_time);
+}
+
+static void clear_output(void) {
+    HANDLE console;
+    COORD start_coord = {0, 0};
+    DWORD num_chars_written;
+    CONSOLE_SCREEN_BUFFER_INFO buffer_info;
+
+    console = GetStdHandle(STD_OUTPUT_HANDLE);
+    GetConsoleScreenBufferInfo(console, &buffer_info);
+    FillConsoleOutputCharacterA(
+        console,
+        ' ',
+        buffer_info.dwSize.X,
+        start_coord,
+        &num_chars_written);
+    SetConsoleCursorPosition(console, start_coord);
 }
 
 static char *get_error_message(DWORD error) {
@@ -140,6 +172,7 @@ static void exit_on_error(const struct program_state *s,
     va_list arg_list;
     char *reason;
 
+    clear_output();
     va_start(arg_list, format);
     vfprintf(stderr, format, arg_list);
     va_end(arg_list);
@@ -150,7 +183,7 @@ static void exit_on_error(const struct program_state *s,
     LocalFree(reason);
 
     if (s->started_copying) {
-        print_status(s);
+        print_status(s->num_bytes_out, s->start_time);
     }
 
     cleanup(s);
@@ -221,6 +254,8 @@ int main(int argc, char **argv) {
     struct program_state s;
     size_t num_blocks_copied = 0;
     BOOL show_progress = FALSE;
+    size_t last_bytes_copied = 0;
+    ULONGLONG last_time = 0;
     DISK_GEOMETRY_EX disk_geometry;
 
     if (!parse_options(argc, argv, &options)) {
@@ -281,7 +316,7 @@ int main(int argc, char **argv) {
             options.filename_out);
     }
 
-    s.buffer_size = DEFAULT_INITIAL_BUFFER_SIZE;
+    s.buffer_size = BUFFER_SIZE;
     s.out_file_is_device = DeviceIoControl(
         s.out_file,
         IOCTL_DISK_GET_DRIVE_GEOMETRY,
@@ -331,19 +366,36 @@ int main(int argc, char **argv) {
         exit_on_error(&s, GetLastError(), "Failed to allocate buffer");
     }
 
-    if (options.status != NULL && strcmp(options.status, "progress") == 0) {
-        show_progress = TRUE;
-    }
-
+    show_progress =
+        (options.status != NULL && strcmp(options.status, "progress") == 0);
     s.started_copying = TRUE;
 
     for (;;) {
         size_t num_block_bytes_in;
         size_t num_block_bytes_out;
         BOOL result;
+        ULONGLONG current_time;
 
         if (options.count >= 0 && s.num_blocks_copied >= options.count) {
             break;
+        }
+
+        if (show_progress) {
+            current_time = get_time_usec();
+            if (last_time == 0) {
+                last_time = current_time;
+            } else {
+                if (current_time - last_time >= UPDATE_INTERVAL) {
+                    clear_output();
+                    print_progress(
+                        s.num_bytes_out,
+                        s.num_bytes_out - last_bytes_copied,
+                        s.start_time,
+                        last_time);
+                    last_time = current_time;
+                    last_bytes_copied = s.num_bytes_out;
+                }
+            }
         }
 
         result = ReadFile(
@@ -377,7 +429,8 @@ int main(int argc, char **argv) {
     }
 
     cleanup(&s);
-    print_status(&s);
+    clear_output();
+    print_status(s.num_bytes_out, s.start_time);
 
     return 0;
 }
