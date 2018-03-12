@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <windows.h>
 
+#define DEFAULT_INITIAL_BUFFER_SIZE 4096
+
 typedef struct {
     const char *filename_in;
     const char *filename_out;
@@ -32,6 +34,7 @@ typedef struct {
 
 static HANDLE file_in;
 static HANDLE file_out;
+static BOOL is_writing_to_device = FALSE;
 static size_t buffer_size;
 static char *buffer;
 static BOOL started_copying = FALSE;
@@ -107,7 +110,13 @@ static char *GetErrorMessage(DWORD error) {
 }
 
 static void CleanUpOnExit() {
-    LocalFree(buffer);
+    VirtualFree(buffer, 0, MEM_RELEASE);
+
+    if (is_writing_to_device) {
+        DeviceIoControl(file_out, FSCTL_UNLOCK_VOLUME,
+            NULL, 0, NULL, 0, NULL, NULL);
+    }
+
     CloseHandle(file_in);
     CloseHandle(file_out);
 }
@@ -204,7 +213,7 @@ int main(int argc, char **argv) {
         FILE_SHARE_READ | FILE_SHARE_WRITE,
         NULL,
         OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL,
+        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
         NULL);
     if (file_in == INVALID_HANDLE_VALUE) {
         ExitWithError(
@@ -242,8 +251,8 @@ int main(int argc, char **argv) {
             options.filename_out);
     }
 
-    if (strstr(options.filename_out, "\\\\") == options.filename_out) {
-        if (!DeviceIoControl(
+    buffer_size = DEFAULT_INITIAL_BUFFER_SIZE;
+    is_writing_to_device = DeviceIoControl(
                 file_out,
                 IOCTL_DISK_GET_DRIVE_GEOMETRY,
                 NULL,
@@ -251,19 +260,37 @@ int main(int argc, char **argv) {
                 &disk_geometry,
                 sizeof(disk_geometry),
                 NULL,
-                NULL)) {
-            ExitWithError(GetLastError(), "Failed to get disk information");
+                NULL);
+
+    if (is_writing_to_device) {
+        DWORD sector_size;
+
+        if (!DeviceIoControl(file_out, FSCTL_DISMOUNT_VOLUME,
+                NULL, 0, NULL, 0, NULL, NULL)) {
+            ExitWithError(GetLastError(), "Failed to dismount output volume");
         }
-        buffer_size = disk_geometry.Geometry.BytesPerSector;
+        if (!DeviceIoControl(file_out, FSCTL_LOCK_VOLUME,
+                NULL, 0, NULL, 0, NULL, NULL)) {
+            ExitWithError(GetLastError(), "Failed to lock output volume");
+        }
+
+        sector_size = disk_geometry.Geometry.BytesPerSector;
+        if (options.block_size < sector_size) {
+            buffer_size = sector_size;
+        } else {
+            buffer_size = (buffer_size / sector_size) * sector_size;
+        }
     } else {
-        buffer_size = 4096;
+        if (options.block_size > 0) {
+            buffer_size = options.block_size;
+        }
     }
 
-    if (options.block_size > 0) {
-        buffer_size = options.block_size;
-    }
-
-    buffer = LocalAlloc(LPTR, buffer_size);
+    buffer = VirtualAlloc(
+        NULL,
+        buffer_size,
+        MEM_COMMIT | MEM_RESERVE,
+        PAGE_READWRITE);
     if (buffer == NULL) {
         ExitWithError(GetLastError(), "Failed to allocate buffer");
     }
