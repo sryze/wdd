@@ -2,8 +2,8 @@ dd for Windows
 ==============
 
 I made this little program for myself to back up USB flash drives and hard
-disks on Windows. It has support for a few `dd` options such as `bs` and
-`count`. In the future I plan to implement `status=progress`.
+disks on Windows. It has support for a few `dd` options such as `bs`, `count`.
+and `status=progress`.
 
 Feel free to use it if you want. But I must warn you:
 
