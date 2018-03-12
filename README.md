@@ -1,11 +1,14 @@
 dd for Windows
 ==============
 
-I made this little program to back up USB flash drives and hard disks on
-Windows. It has support for a few `dd` options such as `bs` and `count`. In
-the future I plan to implement `status=progress`.
+I made this little program for myself to back up USB flash drives and hard
+disks on Windows. It has support for a few `dd` options such as `bs` and
+`count`. In the future I plan to implement `status=progress`.
 
-THIS IS AN EXPERIMENTAL PROGRAM, IT CAN DAMAGE YOUR DATA. USE WITH CAUTION.
+Feel free to use it if you want. But I must warn you:
+
+THIS IS AN EXPERIMENTAL PROGRAM. IT HAS NOT BEEN WELL TESTED AND IT CAN DAMAGE
+YOUR DATA. USE AT YOUR OWN RISK.
 
 Usage
 -----
