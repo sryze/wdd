@@ -13,7 +13,7 @@ YOUR DATA. USE AT YOUR OWN RISK.
 Usage
 -----
 
-```sh
+```
 Usage: wdd if=<in_file> of=<out_file> [bs=N] [count=N] [status=progress]
 ```
 
@@ -21,8 +21,14 @@ Usage: wdd if=<in_file> of=<out_file> [bs=N] [count=N] [status=progress]
 `\\.\PHYSICALDRIVE0`. I haven't tested this with real hard disks, only flash
 drives.
 
+Example:
+
+```
+wdd if=\\.\physicaldrive3 of=usb.img bs=1M status=progress
+```
+
 To list available physical drives you can use this command:
 
-```sh
+```
 wmic diskdrive list brief
 ```
