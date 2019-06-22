@@ -42,7 +42,7 @@ struct program_options {
 struct program_state {
     HANDLE in_file;
     HANDLE out_file;
-    size_t buffer_size;
+    DWORD buffer_size;
     char *buffer;
     BOOL out_file_is_device;
     BOOL started_copying;
@@ -359,7 +359,7 @@ int main(int argc, char **argv) {
         }
     } else {
         if (options.block_size > 0) {
-            s.buffer_size = options.block_size;
+            s.buffer_size = (DWORD)options.block_size; // TODO: Possible bug with bs > 4GB
         }
     }
 
