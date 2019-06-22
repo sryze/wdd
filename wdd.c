@@ -25,6 +25,12 @@
 #define BUFFER_SIZE 4096
 #define UPDATE_INTERVAL 1000000
 
+#ifdef _MSC_VER
+    #define strtoll  _strtoi64
+    #define strtok_r strtok_s
+    #define strdup   _strdup
+#endif
+
 struct program_options {
     const char *filename_in;
     const char *filename_out;
@@ -192,7 +198,7 @@ static void exit_on_error(const struct program_state *s,
 
 static size_t parse_size(const char *str) {
     char *end = NULL;
-    size_t size = (size_t)_strtoi64(str, &end, 10);
+    size_t size = (size_t)strtoll(str, &end, 10);
 
     if (end != NULL && *end != '\0') {
         switch (*end) {
@@ -230,18 +236,18 @@ static BOOL parse_options(int argc,
 
     for (i = 1; i < argc; i++) {
         char *value = NULL;
-        char *name = strtok_s(argv[i], "=", &value);
+        char *name = strtok_r(argv[i], "=", &value);
 
         if (strcmp(name, "if") == 0) {
-            options->filename_in = _strdup(value);
+            options->filename_in = strdup(value);
         } else if (strcmp(name, "of") == 0) {
-            options->filename_out = _strdup(value);
+            options->filename_out = strdup(value);
         } else if (strcmp(name, "bs") == 0) {
             options->block_size = parse_size(value);
         } else if (strcmp(name, "count") == 0) {
-            options->count = (size_t)_strtoi64(value, NULL, 10);
+            options->count = (size_t)strtoll(value, NULL, 10);
         } else if (strcmp(name, "status") == 0) {
-            options->status = _strdup(value);
+            options->status = strdup(value);
         }
     }
 
@@ -371,8 +377,8 @@ int main(int argc, char **argv) {
     s.started_copying = TRUE;
 
     for (;;) {
-        size_t num_block_bytes_in;
-        size_t num_block_bytes_out;
+        DWORD num_block_bytes_in;
+        DWORD num_block_bytes_out;
         BOOL result;
         ULONGLONG current_time;
 
