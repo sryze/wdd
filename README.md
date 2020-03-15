@@ -30,5 +30,11 @@ wdd if=\\.\physicaldrive3 of=usb.img bs=1M status=progress
 To list available physical drives you can use this command:
 
 ```
+wdd list
+```
+
+which internally executes:
+
+```
 wmic diskdrive list brief
 ```

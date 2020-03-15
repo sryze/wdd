@@ -33,6 +33,7 @@
 #endif
 
 struct program_options {
+    BOOL print_drive_list;
     const char *filename_in;
     const char *filename_out;
     size_t block_size;
@@ -244,7 +245,10 @@ static BOOL parse_options(int argc,
         char *value = NULL;
         char *name = strtok_r(argv[i], "=", &value);
 
-        if (strcmp(name, "if") == 0) {
+        if (strcmp(name, "list") == 0) {
+            options->print_drive_list = TRUE;
+            return TRUE;
+        } else if (strcmp(name, "if") == 0) {
             options->filename_in = strdup(value);
         } else if (strcmp(name, "of") == 0) {
             options->filename_out = strdup(value);
@@ -254,6 +258,8 @@ static BOOL parse_options(int argc,
             options->count = (size_t)strtoll(value, NULL, 10);
         } else if (strcmp(name, "status") == 0) {
             options->status = strdup(value);
+        } else {
+            return FALSE;
         }
     }
 
@@ -270,9 +276,15 @@ int main(int argc, char **argv) {
     ULONGLONG last_time = 0;
     DISK_GEOMETRY_EX disk_geometry;
 
+    ZeroMemory(&options, sizeof(options));
+
     if (!parse_options(argc, argv, &options)) {
         print_usage();
-        return 1;
+        return EXIT_FAILURE;
+    }
+
+    if (options.print_drive_list) {
+        return system("wmic diskdrive list brief");
     }
 
     ZeroMemory(&s, sizeof(s));
@@ -447,6 +459,6 @@ int main(int argc, char **argv) {
     clear_output();
     print_status(s.num_bytes_out, s.start_time);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
