@@ -168,8 +168,12 @@ static void cleanup(const struct program_state *s) {
             NULL, 0, NULL, 0, NULL, NULL);
     }
 
-    CloseHandle(s->in_file);
-    CloseHandle(s->out_file);
+    if (s->in_file != INVALID_HANDLE_VALUE) {
+        CloseHandle(s->in_file);
+    }
+    if (s->out_file != INVALID_HANDLE_VALUE) {
+        CloseHandle(s->out_file);
+    }
 }
 
 static void exit_on_error(const struct program_state *s,
@@ -270,6 +274,9 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    ZeroMemory(&s, sizeof(s));
+    s.in_file = INVALID_HANDLE_VALUE;
+    s.out_file = INVALID_HANDLE_VALUE;
     s.start_time = get_time_usec();
     s.out_file_is_device = FALSE;
     s.started_copying = FALSE;
