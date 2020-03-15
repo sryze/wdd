@@ -137,6 +137,7 @@ static void clear_output(void) {
 
     console = GetStdHandle(STD_OUTPUT_HANDLE);
     GetConsoleScreenBufferInfo(console, &buffer_info);
+    start_coord.Y = buffer_info.dwCursorPosition.Y - 1;
     FillConsoleOutputCharacterA(
         console,
         ' ',
@@ -183,14 +184,14 @@ static void exit_on_error(const struct program_state *s,
     va_list arg_list;
     char *reason;
 
-    clear_output();
     va_start(arg_list, format);
     vfprintf(stderr, format, arg_list);
     va_end(arg_list);
     fprintf(stderr, ": ");
 
     reason = get_error_message(error_code);
-    fprintf(stderr, reason);
+    reason[strlen(reason) - 2] = '\0';
+    fprintf(stderr, "%s\n", reason);
     LocalFree(reason);
 
     if (s->started_copying) {
