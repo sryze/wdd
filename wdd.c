@@ -23,13 +23,16 @@
 #include <stdio.h>
 #include <windows.h>
 
+#define KB (1 << 10)
+#define MB (1 << 20)
+#define GB (1 << 30)
 #define BUFFER_SIZE 4096
 #define UPDATE_INTERVAL 1000000
 
 #ifdef _MSC_VER
-    #define strtoll  _strtoi64
+    #define strdup _strdup
+    #define strtoll _strtoi64
     #define strtok_r strtok_s
-    #define strdup   _strdup
 #endif
 
 struct program_options {
@@ -70,24 +73,24 @@ static ULONGLONG get_time_usec(void) {
 }
 
 static void format_size(char *buffer, size_t buffer_size, size_t size) {
-    if (size >= (1 << 30)) {
-        snprintf(buffer, buffer_size, "%0.1f GB", (double)size / (1 << 30));
-    } else if (size >= (1 << 20)) {
-        snprintf(buffer, buffer_size, "%0.1f MB", (double)size / (1 << 20));
-    } else if (size >= (1 << 10)) {
-        snprintf(buffer, buffer_size, "%0.1f KB", (double)size / (1 << 10));
+    if (size >= GB) {
+        snprintf(buffer, buffer_size, "%0.1f GB", (double)size / (double)GB);
+    } else if (size >= MB) {
+        snprintf(buffer, buffer_size, "%0.1f MB", (double)size / (double)MB);
+    } else if (size >= KB) {
+        snprintf(buffer, buffer_size, "%0.1f KB", (double)size / (double)KB);
     } else {
         snprintf(buffer, buffer_size, "%zu bytes", size);
     }
 }
 
 static void format_speed(char *buffer, size_t buffer_size, double speed) {
-    if (speed >= (1 << 30)) {
-        snprintf(buffer, buffer_size, "%0.1f GB/s", speed / (1 << 30));
-    } else if (speed >= (1 << 20)) {
-        snprintf(buffer, buffer_size, "%0.1f MB/s", speed / (1 << 20));
-    } else if (speed >= (1 << 10)) {
-        snprintf(buffer, buffer_size, "%0.1f KB/s", speed / (1 << 10));
+    if (speed >= (double)GB) {
+        snprintf(buffer, buffer_size, "%0.1f GB/s", speed / (double)GB);
+    } else if (speed >= (double)MB) {
+        snprintf(buffer, buffer_size, "%0.1f MB/s", speed /(double) MB);
+    } else if (speed >= (double)KB) {
+        snprintf(buffer, buffer_size, "%0.1f KB/s", speed / (double)KB);
     } else {
         snprintf(buffer, buffer_size, "%0.1f bytes/s", speed);
     }
