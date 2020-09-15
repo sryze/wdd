@@ -1,0 +1,11 @@
+version: '{build}'
+image: Visual Studio 2017
+
+configuration:
+  - Release
+
+before_build:
+  - cmake . -G "Visual Studio 15 2017"
+
+build_script:
+  - cmake --build . --config %CONFIGURATION%
