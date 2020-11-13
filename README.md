@@ -1,6 +1,8 @@
 dd for Windows
 ==============
 
+[![Build Status][build_status]][build]
+
 I made this little program for myself to back up USB flash drives and hard
 disks on Windows. It has support for a few `dd` options such as `bs`, `count`
 and `status=progress`.
@@ -38,3 +40,6 @@ which internally executes:
 ```
 wmic diskdrive list brief
 ```
+
+[build]: https://ci.appveyor.com/project/sryze/wdd/branch/master
+[build_status]: https://ci.appveyor.com/api/projects/status/2whky0cls6kwm840/branch/master?svg=true
