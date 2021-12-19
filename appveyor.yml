@@ -12,3 +12,6 @@ build_script:
 
 after_build:
     - cmake --build . --target package --config %CONFIGURATION%
+
+artifacts:
+    - path: wdd-*.zip
