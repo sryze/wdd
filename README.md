@@ -41,5 +41,11 @@ which internally executes:
 wmic diskdrive list brief
 ```
 
+**Note:** As of Windows 11, the `wmic` command is no longer supported. Please use the following PowerShell command instead:
+
+```
+powershell -Command "Get-WmiObject -Query 'Select * from Win32_DiskDrive'"
+```
+
 [build]: https://ci.appveyor.com/project/sryze/wdd/branch/master
 [build_status]: https://ci.appveyor.com/api/projects/status/2whky0cls6kwm840/branch/master?svg=true
