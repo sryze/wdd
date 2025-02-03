@@ -287,7 +287,7 @@ int main(int argc, char **argv) {
     }
 
     if (options.print_drive_list) {
-        return system("wmic diskdrive list brief");
+        return system("powershell -Command \"Get-PhysicalDisk | Format-Table -Property DeviceID, MediaType, OperationalStatus, Size\"");
     }
 
     ZeroMemory(&s, sizeof(s));
