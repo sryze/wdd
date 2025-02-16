@@ -36,7 +36,6 @@
 #endif
 
 struct program_options {
-    BOOL print_drive_list;
     const char *filename_in;
     const char *filename_out;
     size_t block_size;
@@ -248,10 +247,7 @@ static BOOL parse_options(int argc,
         char *value = NULL;
         char *name = strtok_r(argv[i], "=", &value);
 
-        if (strcmp(name, "list") == 0) {
-            options->print_drive_list = TRUE;
-            return TRUE;
-        } else if (strcmp(name, "if") == 0) {
+        if (strcmp(name, "if") == 0) {
             options->filename_in = strdup(value);
         } else if (strcmp(name, "of") == 0) {
             options->filename_out = strdup(value);
@@ -284,10 +280,6 @@ int main(int argc, char **argv) {
     if (!parse_options(argc, argv, &options)) {
         print_usage();
         return EXIT_FAILURE;
-    }
-
-    if (options.print_drive_list) {
-        return system("wmic diskdrive list brief");
     }
 
     ZeroMemory(&s, sizeof(s));
